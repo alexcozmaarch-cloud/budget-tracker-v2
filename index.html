@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Budget Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./styles.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<!-- Inline theme init — prevents flash of wrong theme -->
+<script>
+(function(){
+  const t = localStorage.getItem('bt-theme') || (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
+</head>
+<body>
+
+<!-- ─── MOBILE BOTTOM NAV ─────────────────────────────── -->
+<div id="mobile-nav">
+  <button class="mnav-btn on" onclick="go('dashboard');mnavSet(this)">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    Dash
+  </button>
+  <button class="mnav-btn" onclick="go('credit');mnavSet(this)">
+    <svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="3"/><line x1="1" y1="10" x2="23" y2="10" stroke-width="2.2"/></svg>
+    CC
+  </button>
+  <button class="mnav-btn" onclick="go('debit');mnavSet(this)">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    Debit
+  </button>
+  <button class="mnav-btn" onclick="go('categories');mnavSet(this)">
+    <svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>
+    Cats
+  </button>
+  <button class="mnav-btn" onclick="go('monthly');mnavSet(this)">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Monthly
+  </button>
+  <button class="mnav-btn" onclick="go('insights');mnavSet(this)">
+    <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    Insights
+  </button>
+  <button class="mnav-btn" onclick="go('settings');mnavSet(this)">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Settings
+  </button>
+</div>
+
+<!-- FAB quick-add -->
+<button id="fab" onclick="fabTap()" title="Quick add" aria-label="Quick add expense">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+</button>
+
+<!-- ─── HEADER ─────────────────────────────────────────── -->
+<header>
+  <div class="logo">
+    <!-- SVG Logo mark -->
+    <div class="logo-icon" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="1" x2="12" y2="23"/>
+        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+      </svg>
+    </div>
+    <div>
+      <div>Budget Tracker</div>
+      <div class="logo-sub">Personal Finance</div>
+    </div>
+  </div>
+  <div class="hright">
+    <div id="dot" class="dot"></div>
+    <span id="stxt">Not connected</span>
+    <a id="sheetLnk" href="#" target="_blank" class="sheet-lnk" style="display:none">Sheet ↗</a>
+    <button id="theme-toggle" aria-label="Toggle dark mode" onclick="toggleTheme()">
+      <!-- Icon injected by JS -->
+      <svg id="theme-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    <button class="iBtn" onclick="syncAll()" title="Sync" aria-label="Sync data">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    </button>
+    <button class="iBtn" onclick="go('settings')" title="Settings" aria-label="Open settings">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- ─── NAV ───────────────────────────────────────────── -->
+<nav>
+  <button class="tab on" onclick="go('dashboard')">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    Dashboard
+  </button>
+  <button class="tab" onclick="go('credit')">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+    Credit Card
+  </button>
+  <button class="tab" onclick="go('debit')">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    Debit
+  </button>
+  <button class="tab" onclick="go('categories')">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>
+    Categories
+  </button>
+  <button class="tab" onclick="go('monthly')">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Monthly
+  </button>
+  <button class="tab" onclick="go('insights')">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    ✦ Insights
+  </button>
+  <button class="tab" onclick="go('settings')">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Settings
+  </button>
+</nav>
+
+<main>
+
+<!-- ─── SETUP ─────────────────────────────────────────── -->
+<div id="v-setup" class="view on">
+  <div class="setup-wrap">
+    <div class="setup-card">
+      <div class="sup-h">Connect Budget Tracker</div>
+      <div class="sup-d">Link to a Google Sheet via Apps Script. A new tab is created each period; a MONTHLY summary sheet tracks your history.</div>
+
+      <div class="setup-step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong>Create a Google Sheet</strong>
+          <p>Go to sheets.google.com → new spreadsheet. Name it "Budget Tracker".</p>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong>Open Apps Script</strong>
+          <p>Extensions → Apps Script. Replace everything with the code below, then save.</p>
+          <div class="code-block" id="appsScriptCode">// Budget Tracker — Apps Script
+// Paste this entire file, save, then deploy as Web App (Anyone access)
+
+function doGet(e) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const action = e.parameter.action;
+  const sheet  = e.parameter.sheet || currentSheet_();
+
+  if (action === 'getData')    return jsonResp(getData_(ss, sheet));
+  if (action === 'getMonthly') return jsonResp(getMonthly_(ss));
+  return jsonResp({error:'Unknown action'});
+}
+
+function doPost(e) {
+  const ss   = SpreadsheetApp.getActiveSpreadsheet();
+  const body = JSON.parse(e.postData.contents);
+  const {action, sheet, type, date, desc, cat, amount, row, budget} = body;
+
+  if (action === 'addExpense')    return jsonResp(addExpense_(ss, sheet, type, date, desc, cat, amount, budget));
+  if (action === 'deleteExpense') return jsonResp(deleteExpense_(ss, sheet, type, row));
+  if (action === 'editExpense')   return jsonResp(editExpense_(ss, sheet, type, row, date, desc, cat, amount, budget));
+  return jsonResp({error:'Unknown action'});
+}
+
+// ─── helpers ──────────────────────────────────────────
+const CAT_IDS = ['groceries','lunches','transport','running','hobbies','health','media','travel','extras','refund'];
+
+function currentSheet_() {
+  const n=new Date(), d=n.getDate(), m=n.getMonth(), y=n.getFullYear();
+  const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const startDay = 10;
+  if(d < startDay) { const pm = m===0?11:m-1; const py = m===0?y-1:y; return String(py).slice(-2)+'.'+mon[pm]; }
+  return String(y).slice(-2)+'.'+mon[m];
+}
+
+function getOrCreateSheet_(ss, name) {
+  let sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.appendRow(['date','desc','cat','amount','running']);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function sheetData_(sh) {
+  if (sh.getLastRow() < 2) return [];
+  const rows = sh.getRange(2,1,sh.getLastRow()-1,5).getValues();
+  return rows.map((r,i)=>({row:i+2, date:r[0]?Utilities.formatDate(new Date(r[0]),'GMT','yyyy-MM-dd'):'', desc:r[1], cat:r[2], amount:r[3], running:r[4]}));
+}
+
+function calcRunning_(sh) {
+  if (sh.getLastRow() < 2) return;
+  const rows = sh.getRange(2,1,sh.getLastRow()-1,5).getValues();
+  let run=0;
+  rows.forEach((r,i)=>{ run+=parseFloat(r[3])||0; sh.getRange(i+2,5).setValue(run); });
+}
+
+function getData_(ss, sheetName) {
+  const ccSh = getOrCreateSheet_(ss, sheetName+'_CC');
+  const ddSh = getOrCreateSheet_(ss, sheetName+'_DD');
+  const cc   = sheetData_(ccSh);
+  const dd   = sheetData_(ddSh);
+  const ccT  = cc.reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
+  const ddT  = dd.reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
+  return { cc, dd, stats:{ ccTotal:ccT, ddTotal:ddT, total:ccT+ddT }, spreadsheetUrl:ss.getUrl() };
+}
+
+function addExpense_(ss, sheetName, type, date, desc, cat, amount, budget) {
+  const name = sheetName+'_'+(type==='CC'?'CC':'DD');
+  const sh = getOrCreateSheet_(ss, name);
+  sh.appendRow([new Date(date), desc, cat||'', parseFloat(amount), 0]);
+  calcRunning_(sh);
+  updateMonthly_(ss, sheetName, budget);
+  return getData_(ss, sheetName);
+}
+
+function deleteExpense_(ss, sheetName, type, row) {
+  const name = sheetName+'_'+(type==='CC'?'CC':'DD');
+  const sh = ss.getSheetByName(name);
+  if (sh && row > 1) { sh.deleteRow(row); calcRunning_(sh); }
+  updateMonthly_(ss, sheetName);
+  return getData_(ss, sheetName);
+}
+
+function editExpense_(ss, sheetName, type, row, date, desc, cat, amount, budget) {
+  const name = sheetName+'_'+(type==='CC'?'CC':'DD');
+  const sh = ss.getSheetByName(name);
+  if (!sh || row < 2) return {error:'Row not found'};
+  sh.getRange(row, 1, 1, 4).setValues([[new Date(date), desc, cat||'', parseFloat(amount)]]);
+  calcRunning_(sh);
+  updateMonthly_(ss, sheetName, budget);
+  return getData_(ss, sheetName);
+}
+
+function getMonthly_(ss) {
+  const sh = ss.getSheetByName('MONTHLY');
+  if (!sh || sh.getLastRow() < 2) return {data:[]};
+  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  const rows = sh.getRange(2,1,sh.getLastRow()-1,headers.length).getValues();
+  return {data: rows.map(r => {
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = r[i]);
+    return obj;
+  })};
+}
+
+function updateMonthly_(ss, sheetName, budget) {
+  const baseHeaders = ['period','budget','cc','dd','total','saving'];
+  const allHeaders = baseHeaders.concat(CAT_IDS);
+
+  let sh = ss.getSheetByName('MONTHLY');
+  if (!sh) {
+    sh = ss.insertSheet('MONTHLY');
+    sh.appendRow(allHeaders);
+    sh.setFrozenRows(1);
+  }
+
+  const existingHeaders = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  CAT_IDS.forEach(id => {
+    if (!existingHeaders.includes(id)) {
+      sh.getRange(1, existingHeaders.length+1).setValue(id);
+      existingHeaders.push(id);
+    }
+  });
+  const headerRow = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+
+  const ccSh = ss.getSheetByName(sheetName+'_CC');
+  const ddSh = ss.getSheetByName(sheetName+'_DD');
+  const ccRows = ccSh&&ccSh.getLastRow()>1 ? ccSh.getRange(2,1,ccSh.getLastRow()-1,5).getValues() : [];
+  const ddRows = ddSh&&ddSh.getLastRow()>1 ? ddSh.getRange(2,1,ddSh.getLastRow()-1,5).getValues() : [];
+  const allRows = [...ccRows, ...ddRows];
+
+  const ccT  = ccRows.reduce((s,r)=>s+(parseFloat(r[3])||0),0);
+  const ddT  = ddRows.reduce((s,r)=>s+(parseFloat(r[3])||0),0);
+  const total= ccT+ddT;
+  budget = parseFloat(budget)||1800;
+
+  const catTotals = {};
+  CAT_IDS.forEach(id => catTotals[id] = 0);
+  allRows.forEach(r => {
+    const cat = r[2];
+    if (cat && catTotals.hasOwnProperty(cat)) {
+      catTotals[cat] += parseFloat(r[3])||0;
+    }
+  });
+
+  const rowData = headerRow.map(h => {
+    if (h==='period') return sheetName;
+    if (h==='budget') return budget;
+    if (h==='cc')     return ccT;
+    if (h==='dd')     return ddT;
+    if (h==='total')  return total;
+    if (h==='saving') return budget-total;
+    return catTotals[h]||0;
+  });
+
+  const dataRows = sh.getLastRow()>1 ? sh.getRange(2,1,sh.getLastRow()-1,1).getValues() : [];
+  const idx = dataRows.findIndex(r=>r[0]===sheetName);
+  if (idx>=0) sh.getRange(idx+2,1,1,rowData.length).setValues([rowData]);
+  else sh.appendRow(rowData);
+}
+
+function jsonResp(obj){ return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON); }
+
+// ─── Period-end email summary ─────────────────────────────────
+const SUMMARY_EMAIL = 'your@email.com'; // ← change this
+
+function sendPeriodSummary() {
+  const ss   = SpreadsheetApp.getActiveSpreadsheet();
+  const sh   = ss.getSheetByName('MONTHLY');
+  if (!sh || sh.getLastRow() < 2) return;
+
+  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  const rows    = sh.getRange(2,1,sh.getLastRow()-1,headers.length).getValues();
+  const data    = rows.map(r => { const o={}; headers.forEach((h,i)=>o[h]=r[i]); return o; });
+
+  const sorted = [...data].sort((a,b)=>String(b.period).localeCompare(String(a.period)));
+  const cur    = sorted[0];
+  if (!cur) return;
+
+  const chf = v => 'CHF ' + Math.abs(parseFloat(v)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,"'");
+  const sign = v => (parseFloat(v)||0) >= 0 ? '+' : '-';
+
+  const catNames = {
+    groceries:'Groceries', lunches:'Lunches', transport:'Transport',
+    running:'Running', hobbies:'Hobbies', health:'Health',
+    media:'Media & Subs', travel:'Travel', extras:'Extras', refund:'Refund/Income'
+  };
+
+  const pad = (s, n) => String(s).padEnd(n);
+  let body = '\u25c8 Budget Tracker — Period Summary: ' + cur.period + '\n';
+  body += '='.repeat(42) + '\n\n';
+  body += pad('Budget:',16) + chf(cur.budget) + '\n';
+  body += pad('Total Spent:',16) + chf(cur.total) + '\n';
+  body += pad('vs Budget:',16) + sign(parseFloat(cur.budget)-parseFloat(cur.total)) + chf(Math.abs((parseFloat(cur.budget)||0)-(parseFloat(cur.total)||0))) + '\n';
+  body += pad('Net Saving:',16) + sign(cur.saving) + chf(cur.saving) + '\n';
+  body += pad('Credit Card:',16) + chf(cur.cc) + '\n';
+  body += pad('Debit:',16) + chf(cur.dd) + '\n';
+  body += '\n' + '-'.repeat(42) + '\n';
+  body += 'Category Breakdown\n';
+  body += '-'.repeat(42) + '\n';
+  CAT_IDS.forEach(id => {
+    const v = parseFloat(cur[id])||0;
+    if (v > 0) body += pad((catNames[id]||id)+':',18) + chf(v) + '\n';
+  });
+
+  if (data.length > 1) {
+    const n = data.length;
+    const avgTotal  = data.reduce((s,r)=>s+(parseFloat(r.total)||0),0)/n;
+    const avgSaving = data.reduce((s,r)=>s+(parseFloat(r.saving)||0),0)/n;
+    body += '\n' + '-'.repeat(42) + '\n';
+    body += 'Running Average (' + n + ' periods)\n';
+    body += '-'.repeat(42) + '\n';
+    body += pad('Avg Spent:',16) + chf(avgTotal) + '\n';
+    body += pad('Avg Saving:',16) + sign(avgSaving) + chf(avgSaving) + '\n';
+  }
+
+  body += '\n' + ss.getUrl() + '\n';
+
+  MailApp.sendEmail({
+    to: SUMMARY_EMAIL,
+    subject: '\u25c8 Budget ' + cur.period + ' — ' + chf(cur.total) + ' spent, ' + chf(cur.saving) + ' saved',
+    body: body
+  });
+}</div>
+          <button class="btn btn-g" style="padding:5px 12px;font-size:11px;margin-top:6px" onclick="copyScript()">Copy Script</button>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong>Deploy as Web App</strong>
+          <p>Deploy → New deployment → Web App. Set "Who has access" to <em>Anyone</em>. Copy the URL.</p>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <strong>Paste URL and configure</strong>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <strong>Set up monthly email (optional)</strong>
+          <p>In the script, change <code style="color:var(--primary);background:var(--bg);padding:1px 5px;border-radius:3px">SUMMARY_EMAIL</code> to your address. Then: Triggers (clock icon) → Add Trigger → <em>sendPeriodSummary</em>, Time-driven, Month timer, Day&nbsp;10, Hour&nbsp;8–9.</p>
+        </div>
+      </div>
+
+      <div class="field"><label>Apps Script URL</label><input id="s-url" type="text" placeholder="https://script.google.com/macros/s/…/exec"></div>
+      <div class="field"><label>Budget per period (CHF)</label><input id="s-budget" type="number" value="1800"></div>
+      <div class="field"><label>Period start day</label><input id="s-startday" type="number" value="10"></div>
+      <div class="flex mt16"><button class="btn btn-p" onclick="setup()">Connect &amp; Launch →</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── DASHBOARD ─────────────────────────────────────── -->
+<div id="v-dashboard" class="view">
+  <div class="pbar">
+    <div class="pi"><div class="pi-lbl">Period</div><div class="pi-val" id="p-dates">–</div></div>
+    <div class="pi"><div class="pi-lbl">Sheet</div><div class="pi-val"><span id="p-sheet" class="chip cur">–</span></div></div>
+    <div class="pi"><div class="pi-lbl">Days Left</div><div class="pi-val" id="p-days">–</div></div>
+    <div class="prog-w">
+      <div class="prog-t"><div class="prog-f" id="prog" style="width:0"></div></div>
+      <div class="prog-lbl" id="prog-lbl">–</div>
+    </div>
+  </div>
+
+  <!-- End-of-period projection -->
+  <div class="proj-bar" id="proj-bar">
+    <div class="proj-item">
+      <div class="proj-lbl">Daily Rate</div>
+      <div class="proj-val" id="proj-daily">–</div>
+    </div>
+    <div class="proj-item">
+      <div class="proj-lbl">Projected Total</div>
+      <div class="proj-val" id="proj-total">–</div>
+    </div>
+    <div class="proj-item">
+      <div class="proj-lbl">Projected Saving</div>
+      <div class="proj-val" id="proj-saving">–</div>
+    </div>
+    <div class="proj-item">
+      <div class="proj-lbl">Status</div>
+      <div class="proj-badge ok" id="proj-badge">On track</div>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi b"><div class="kpi-lbl">Budget</div><div class="kpi-val" id="k-budget">–</div><div class="kpi-sub" id="k-budget-d">–</div></div>
+    <div class="kpi" id="kc-spent"><div class="kpi-lbl">Total Spent</div><div class="kpi-val" id="k-spent">–</div><div class="kpi-sub" id="k-spent-p">–</div></div>
+    <div class="kpi" id="kc-remain"><div class="kpi-lbl">Remaining</div><div class="kpi-val" id="k-remain">–</div><div class="kpi-sub" id="k-remain-d">–</div></div>
+    <div class="kpi" id="kc-saving"><div class="kpi-lbl">Net Saving</div><div class="kpi-val" id="k-saving">–</div><div class="kpi-sub" id="k-saving-sub">this period</div></div>
+    <div class="kpi">
+      <div class="kpi-lbl" style="display:flex;align-items:center;gap:6px">
+        <span class="account-badge cc">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          CC
+        </span>
+      </div>
+      <div class="kpi-val" id="k-cc">–</div><div class="kpi-sub" id="k-cc-d">–</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl" style="display:flex;align-items:center;gap:6px">
+        <span class="account-badge debit">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Debit
+        </span>
+      </div>
+      <div class="kpi-val" id="k-dd">–</div><div class="kpi-sub">direct charges</div>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+    <div class="sec-title" style="margin:0;padding:0;border:none">Spending by Category</div>
+  </div>
+  <div class="cat-filter-bar" id="dash-cat-filter"></div>
+  <div class="cat-grid" id="dash-cat-grid"><div style="color:var(--muted);font-family:var(--font-mono);font-size:12px">Sync to load</div></div>
+
+  <div class="chart-panel chart-single">
+    <div class="chart-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Daily Cumulative Spending — this period
+    </div>
+    <canvas id="chart-line" height="120"></canvas>
+  </div>
+
+  <div class="two-col">
+    <div class="panel">
+      <div class="ph">
+        <span class="pt">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          Latest · Credit Card
+          <span class="account-badge cc" style="margin-left:4px">CC</span>
+        </span>
+        <span class="badge" id="b-cc">0</span>
+      </div>
+      <div class="elh"><span>Date</span><span style="padding-left:8px">Description</span><span style="text-align:right">Amount</span><span style="text-align:right">Running</span><span></span></div>
+      <div class="elist" style="max-height:320px" id="dash-cc"><div class="empty">Sync to load</div></div>
+    </div>
+    <div class="panel">
+      <div class="ph">
+        <span class="pt">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Latest · Debit
+          <span class="account-badge debit" style="margin-left:4px">Debit</span>
+        </span>
+        <span class="badge" id="b-dd">0</span>
+      </div>
+      <div class="elh"><span>Date</span><span style="padding-left:8px">Description</span><span style="text-align:right">Amount</span><span style="text-align:right">Running</span><span></span></div>
+      <div class="elist" style="max-height:320px" id="dash-dd"><div class="empty">Sync to load</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── CREDIT CARD ───────────────────────────────────── -->
+<div id="v-credit" class="view">
+  <div class="panel">
+    <div class="ph">
+      <span class="pt">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        Credit Card Entry
+        <span class="account-badge cc">CC</span>
+      </span>
+      <span id="cc-period-hint" style="font-family:var(--font-mono);font-size:10px;color:var(--muted)"></span>
+    </div>
+    <div class="add-form">
+      <div class="ff fdt"><label for="cc-date">Date</label><input type="date" id="cc-date" aria-describedby="cc-form-error"></div>
+      <div class="ff fd"><label for="cc-desc">Description</label><input type="text" id="cc-desc" placeholder="e.g. Migros" list="cc-desc-list" autocomplete="off" aria-describedby="cc-form-error"></div>
+      <div class="ff fc"><label for="cc-cat">Category</label><select id="cc-cat" aria-describedby="cc-form-error"></select></div>
+      <div class="ff fa"><label for="cc-amt">Amount CHF</label><input type="number" id="cc-amt" placeholder="0.00" step="0.05" aria-describedby="cc-form-error"></div>
+      <div class="ff" style="width:90px"><label>Type</label>
+        <select id="cc-type" style="padding:8px 6px;font-size:11px">
+          <option value="expense">Expense</option>
+          <option value="refund">Refund</option>
+        </select>
+      </div>
+      <button class="btn btn-g" type="button" onclick="saveRecurringFromForm('CC')">Save Recurring</button>
+      <button class="btn btn-p" onclick="addExp('CC')" id="cc-btn" aria-label="Add credit card entry">+ Add</button>
+    </div>
+    <div id="cc-form-error" class="form-error" role="alert" aria-live="polite"></div>
+    <div id="dd-form-error" class="form-error" role="alert" aria-live="polite"></div>
+  </div>
+  <div class="panel">
+    <div class="ph">
+      <span class="pt">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Credit Card Log
+      </span>
+      <span class="badge" id="cc-count">0</span>
+    </div>
+    <div class="search-wrap">
+      <input type="text" id="cc-search" placeholder="Search descriptions…" oninput="filterList('cc')">
+    </div>
+    <div class="elh"><span>Date</span><span style="padding-left:8px">Description</span><span style="text-align:right">Amount</span><span style="text-align:right">Running</span><span></span></div>
+    <div class="elist" style="max-height:520px" id="cc-list"><div class="empty">No entries yet</div></div>
+  </div>
+</div>
+
+<!-- ─── DEBIT ─────────────────────────────────────────── -->
+<div id="v-debit" class="view">
+  <div class="panel">
+    <div class="ph">
+      <span class="pt">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        Debit Entry
+        <span class="account-badge debit">Debit</span>
+      </span>
+      <span id="dd-period-hint" style="font-family:var(--font-mono);font-size:10px;color:var(--muted)"></span>
+    </div>
+    <div class="add-form">
+      <div class="ff fdt"><label for="dd-date">Date</label><input type="date" id="dd-date" aria-describedby="dd-form-error"></div>
+      <div class="ff fd"><label for="dd-desc">Description</label><input type="text" id="dd-desc" placeholder="e.g. ZVV" list="dd-desc-list" autocomplete="off" aria-describedby="dd-form-error"></div>
+      <div class="ff fc"><label for="dd-cat">Category</label><select id="dd-cat" aria-describedby="dd-form-error"></select></div>
+      <div class="ff fa"><label for="dd-amt">Amount CHF</label><input type="number" id="dd-amt" placeholder="0.00" step="0.05" aria-describedby="dd-form-error"></div>
+      <div class="ff" style="width:90px"><label>Type</label>
+        <select id="dd-type" style="padding:8px 6px;font-size:11px">
+          <option value="expense">Expense</option>
+          <option value="refund">Refund</option>
+        </select>
+      </div>
+      <button class="btn btn-g" type="button" onclick="saveRecurringFromForm('DD')">Save Recurring</button>
+      <button class="btn btn-p" onclick="addExp('DD')" id="dd-btn" aria-label="Add debit entry">+ Add</button>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ph">
+      <span class="pt">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Debit Log
+      </span>
+      <span class="badge" id="dd-count">0</span>
+    </div>
+    <div class="search-wrap">
+      <input type="text" id="dd-search" placeholder="Search descriptions…" oninput="filterList('dd')">
+    </div>
+    <div class="elh"><span>Date</span><span style="padding-left:8px">Description</span><span style="text-align:right">Amount</span><span style="text-align:right">Running</span><span></span></div>
+    <div class="elist" style="max-height:520px" id="dd-list"><div class="empty">No entries yet</div></div>
+  </div>
+</div>
+
+<!-- ─── CATEGORIES ────────────────────────────────────── -->
+<div id="v-categories" class="view">
+  <div class="sec-title">Category Budgets — click a category to see its entries</div>
+  <div id="cat-detail-wrap">
+    <div class="cat-grid" id="cat-detail-grid"></div>
+    <div id="cat-detail-drawer" class="cat-drawer"></div>
+  </div>
+  <div class="panel" style="margin-top:14px">
+    <div class="ph">
+      <span class="pt">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><line x1="3" y1="12" x2="9" y2="12"/><line x1="15" y1="12" x2="21" y2="12"/></svg>
+        Set Budget per Category (CHF / period)
+      </span>
+      <button class="btn btn-p" style="padding:6px 14px" onclick="saveCatBudgets()">Save Budgets</button>
+    </div>
+    <div style="padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px" id="cat-settings-list"></div>
+  </div>
+</div>
+
+<!-- ─── MONTHLY ───────────────────────────────────────── -->
+<div id="v-monthly" class="view">
+  <!-- Charts row -->
+  <div class="two-col" style="margin-bottom:14px">
+    <div class="chart-panel">
+      <div class="chart-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="4" height="18"/><rect x="10" y="8" width="4" height="13"/><rect x="18" y="13" width="4" height="8"/></svg>
+        Total Spent vs Budget — per period
+      </div>
+      <canvas id="m-chart-bar" height="180"></canvas>
+    </div>
+    <div class="chart-panel">
+      <div class="chart-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 17 9 11 13 15 21 7"/></svg>
+        Saving per period
+      </div>
+      <canvas id="m-chart-saving" height="180"></canvas>
+    </div>
+  </div>
+  <div class="chart-panel" style="margin-bottom:14px">
+    <div class="chart-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20"/><line x1="12" y1="2" x2="12" y2="22"/></svg>
+      Category breakdown — per period
+    </div>
+    <canvas id="m-chart-cats" height="160"></canvas>
+  </div>
+
+  <div class="panel">
+    <div class="ph">
+      <span class="pt">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Monthly Summary
+      </span>
+      <button class="btn btn-g" style="padding:5px 12px;font-size:11px" onclick="syncMonthly()">↻ Refresh</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="mtable">
+        <thead id="monthly-thead"><tr><th>Period</th><th>Budget</th><th>CC</th><th>Debit</th><th>Total</th><th>vs Budget</th><th>Saving</th></tr></thead>
+        <tbody id="monthly-tbody"><tr><td colspan="7" class="empty">Sync to load</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ─── INSIGHTS ──────────────────────────────────────── -->
+<div id="v-insights" class="view">
+  <!-- Profile config bar -->
+  <div class="panel" style="margin-bottom:14px">
+    <div class="ph">
+      <span class="pt">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Your Profile
+      </span>
+      <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted)">used for benchmarks</span>
+    </div>
+    <div style="padding:14px 16px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+      <div class="ff" style="min-width:120px;flex:1">
+        <label style="font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;display:block">Age group</label>
+        <select id="ins-age" onchange="saveInsightProfile()" style="padding:8px 10px;font-size:13px">
+          <option value="25-34">25–34</option>
+          <option value="35-44" selected>35–44</option>
+          <option value="45-54">45–54</option>
+          <option value="55+">55+</option>
+        </select>
+      </div>
+      <div class="ff" style="min-width:140px;flex:1">
+        <label style="font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;display:block">Monthly income (CHF)</label>
+        <input type="number" id="ins-income" value="6000" step="500" onchange="saveInsightProfile()" style="padding:8px 10px;font-size:13px">
+      </div>
+      <div class="ff" style="min-width:120px;flex:1">
+        <label style="font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;display:block">Household</label>
+        <select id="ins-hh" onchange="saveInsightProfile()" style="padding:8px 10px;font-size:13px">
+          <option value="single" selected>Single</option>
+          <option value="couple">Couple</option>
+          <option value="family">Family</option>
+        </select>
+      </div>
+      <button class="btn btn-p" style="padding:8px 16px" onclick="renderInsights()">Recalculate</button>
+    </div>
+  </div>
+
+  <!-- Score cards -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px" id="ins-scores"></div>
+
+  <!-- Behaviour heatmap -->
+  <div class="chart-panel" style="margin-bottom:14px">
+    <div class="chart-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
+      Spending Heatmap — day of week × category
+    </div>
+    <div id="ins-heatmap" style="overflow-x:auto"></div>
+  </div>
+
+  <!-- Trend arrows per category -->
+  <div class="panel" style="margin-bottom:14px">
+    <div class="ph"><span class="pt">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+      Category Trends — period over period
+    </span></div>
+    <div id="ins-trends" style="padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px"></div>
+  </div>
+
+  <!-- Swiss benchmark comparison -->
+  <div class="chart-panel" style="margin-bottom:14px">
+    <div class="chart-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      vs Swiss Benchmark (FSO data · Zürich · your income bracket)
+    </div>
+    <canvas id="ins-bench-chart" height="180"></canvas>
+  </div>
+
+  <!-- AI Analysis -->
+  <div class="panel" style="margin-bottom:14px">
+    <div class="ph">
+      <span class="pt">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        ✦ AI Analysis
+      </span>
+      <button class="btn btn-p" style="padding:5px 14px;font-size:11px" onclick="runAIAnalysis()" id="ai-btn">Analyse my spending</button>
+    </div>
+    <div id="ai-output" style="padding:18px 20px;font-size:13px;line-height:1.8;color:var(--muted);font-family:var(--sans)">
+      Press <strong style="color:var(--text)">Analyse my spending</strong> to get a personalised AI assessment of your habits, patterns and where you can improve.
+    </div>
+  </div>
+</div>
+
+<!-- ─── SETTINGS ──────────────────────────────────────── -->
+<div id="v-settings" class="view">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:780px">
+    <div class="panel">
+      <div class="ph"><span class="pt">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        Connection
+      </span></div>
+      <div style="padding:18px;display:flex;flex-direction:column;gap:12px">
+        <div class="field" style="margin:0"><label>Apps Script URL</label><input id="cfg-url" type="text"></div>
+        <div class="field" style="margin:0"><label>Budget per period (CHF)</label><input id="cfg-budget" type="number"></div>
+        <div class="field" style="margin:0"><label>Period start day</label><input id="cfg-startday" type="number"></div>
+        <div class="flex mt16">
+          <button class="btn btn-p" onclick="saveSettings()">Save &amp; Reconnect</button>
+          <button class="btn btn-r" onclick="resetApp()">Reset App</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        About
+      </span></div>
+      <div style="padding:18px;color:var(--muted);font-size:13px;line-height:1.8">
+        <p>Period runs from the <strong style="color:var(--text)" id="about-startday">10th</strong> of each month to the next 10th.</p>
+        <p style="margin-top:8px">A new pair of sheet tabs (_CC, _DD) is created automatically each period.</p>
+        <p style="margin-top:8px">Category budgets are saved locally in your browser.</p>
+        <p style="margin-top:8px">The <strong style="color:var(--text)">Projection</strong> bar on the dashboard estimates your end-of-period total based on current daily spend rate.</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Recurring Entries
+      </span></div>
+      <div style="padding:18px;display:flex;flex-direction:column;gap:12px">
+        <p style="color:var(--muted);font-size:13px;line-height:1.7">Save common monthly entries locally, then apply them to the current period when needed.</p>
+        <div id="recurring-list" class="recurring-list"></div>
+        <div class="flex mt16" style="gap:10px;flex-wrap:wrap">
+          <button class="btn btn-g" onclick="applyRecurringTemplates()">Apply to Current Period</button>
+          <span style="color:var(--muted);font-family:var(--font-mono);font-size:11px">Duplicates for today are skipped automatically</span>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Backup &amp; Export
+      </span></div>
+      <div style="padding:18px;display:flex;flex-direction:column;gap:12px">
+        <p style="color:var(--muted);font-size:13px;line-height:1.7">Download your current transactions and settings for backup or analysis.</p>
+        <div class="flex mt16" style="gap:10px;flex-wrap:wrap">
+          <button class="btn btn-g" onclick="exportTransactionsCSV()">Export CSV</button>
+          <button class="btn btn-g" onclick="exportBackupJSON()">Export JSON Backup</button>
+          <label class="btn btn-g" for="import-backup-file" style="cursor:pointer">Import JSON Backup</label>
+          <input id="import-backup-file" type="file" accept="application/json,.json" style="display:none" onchange="importBackupJSON(event)">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- ─── EDIT MODAL ────────────────────────────────────── -->
+<div class="modal-overlay" id="editModal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle" aria-hidden="true">
+  <div class="modal-box">
+    <div class="modal-title" id="editModalTitle">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Edit Entry
+    </div>
+    <div class="modal-row"><label>Date</label><input type="date" id="edit-date"></div>
+    <div class="modal-row"><label>Description</label><input type="text" id="edit-desc" list="desc-suggestions" autocomplete="off"></div>
+    <div class="modal-row"><label>Category</label><select id="edit-cat"></select></div>
+    <div class="modal-row"><label>Amount CHF</label><input type="number" id="edit-amt" step="0.05" min="0"></div>
+    <div class="modal-actions">
+      <button class="btn btn-g" onclick="closeEditModal()">Cancel</button>
+      <button class="btn btn-p" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- AUTOCOMPLETE DATALIST -->
+<datalist id="desc-suggestions"></datalist>
+<datalist id="cc-desc-list"></datalist>
+<datalist id="dd-desc-list"></datalist>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<!-- ─── THEME TOGGLE SCRIPT ───────────────────────────── -->
+<script>
+function toggleTheme() {
+  const html = document.documentElement;
+  const current = html.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+  try { localStorage.setItem('bt-theme', next); } catch(e){}
+  updateThemeIcon(next);
+  // Re-render charts with new colors if they exist
+  if (window._chartsNeedRecolor) window._chartsNeedRecolor();
+}
+
+function updateThemeIcon(theme) {
+  const btn = document.getElementById('theme-icon');
+  if (!btn) return;
+  btn.innerHTML = theme === 'dark'
+    ? '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'
+    : '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+}
+
+// Init icon on load
+document.addEventListener('DOMContentLoaded', function() {
+  const t = document.documentElement.getAttribute('data-theme') || 'dark';
+  updateThemeIcon(t);
+});
+</script>
+
+<script src="./app.js" defer></script>
+</body>
+</html>
