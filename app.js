@@ -1,10 +1,138 @@
+// ═══════════════════════════════════════════════════════════
+//  DRIVE CONFIG — cross-device sync via Google Drive JSON file
+//  Falls back to localStorage when not yet connected.
+//  Config keys stored remotely: url, budget, startDay,
+//  catBudgets, recurring, insightProfile
+// ═══════════════════════════════════════════════════════════
+const DriveConfig = (() => {
+  // In-memory cache of the full config object
+  let _cache = null;
+  let _saveTimer = null;
+  let _scriptUrl = ''; // set after first localStorage read
+
+  // ── localStorage shim (always available as bootstrap) ──
+  const ls = {
+    get: (k, fb='') => { try { const v=localStorage.getItem(k); return v===null?fb:v; } catch(e){ return fb; } },
+    set: (k, v) => { try { localStorage.setItem(k,v); } catch(e){} },
+    getJ: (k, fb={}) => { try { const r=localStorage.getItem(k); return r?JSON.parse(r):fb; } catch(e){ return fb; } },
+    setJ: (k, v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch(e){} },
+    clear: () => { try { localStorage.clear(); } catch(e){} }
+  };
+
+  // ── Drive API via Apps Script ──
+  async function driveGet(url) {
+    if (!url) return null;
+    try {
+      const r = await fetch(url + '?action=loadConfig', { method:'GET' });
+      const j = await r.json();
+      if (j && j.config) return j.config;
+      return null;
+    } catch(e) { return null; }
+  }
+  async function driveSave(url, cfg) {
+    if (!url) return;
+    try {
+      await fetch(url, {
+        method:'POST',
+        body: JSON.stringify({ action:'saveConfig', config: cfg })
+      });
+    } catch(e) { /* silent — localStorage already updated */ }
+  }
+
+  // ── Config helpers ──
+  function defaults() {
+    return {
+      url: ls.get('bt_url',''),
+      budget: parseFloat(ls.get('bt_budget','1800')),
+      startDay: parseInt(ls.get('bt_startday','10')),
+      catBudgets: ls.getJ('bt_catb', {}),
+      recurring: ls.getJ('bt_recurring', []),
+      insightProfile: ls.getJ('bt_ins_profile', {})
+    };
+  }
+  function applyToLS(cfg) {
+    ls.set('bt_url', cfg.url||'');
+    ls.set('bt_budget', cfg.budget||1800);
+    ls.set('bt_startday', cfg.startDay||10);
+    ls.setJ('bt_catb', cfg.catBudgets||{});
+    ls.setJ('bt_recurring', cfg.recurring||[]);
+    ls.setJ('bt_ins_profile', cfg.insightProfile||{});
+  }
+
+  // ── Public API ──
+  return {
+    // Called once on startup — loads from Drive if URL is known
+    async load() {
+      _cache = defaults(); // start with localStorage values
+      _scriptUrl = _cache.url;
+      if (_scriptUrl) {
+        showConfigStatus('syncing');
+        const remote = await driveGet(_scriptUrl);
+        if (remote) {
+          _cache = { ...defaults(), ...remote };
+          applyToLS(_cache); // keep localStorage in sync
+        } else {
+          // First time — push existing localStorage config to Drive
+          await driveSave(_scriptUrl, _cache);
+        }
+        showConfigStatus('synced');
+      }
+      return _cache;
+    },
+
+    // Get a config value (synchronous — from cache)
+    get(key, fallback=null) {
+      if (_cache && _cache[key] !== undefined) return _cache[key];
+      return fallback;
+    },
+
+    // Update one or more keys and schedule a Drive save
+    set(updates) {
+      if (!_cache) _cache = defaults();
+      Object.assign(_cache, updates);
+      applyToLS(_cache); // immediate localStorage write
+      _scriptUrl = _cache.url || _scriptUrl;
+      // Debounced Drive save (500ms)
+      clearTimeout(_saveTimer);
+      _saveTimer = setTimeout(() => {
+        if (_scriptUrl) {
+          showConfigStatus('saving');
+          driveSave(_scriptUrl, _cache)
+            .then(() => showConfigStatus('synced'))
+            .catch(() => showConfigStatus(''));
+        }
+      }, 500);
+    },
+
+    // Full reset
+    clear() {
+      _cache = null;
+      ls.clear();
+    },
+
+    // Raw localStorage access (for migration / backup use)
+    ls
+  };
+})();
+
+// Status badge in header
+function showConfigStatus(state) {
+  const el = document.getElementById('cfg-status');
+  if (!el) return;
+  if (state === 'saving')  { el.textContent = '↑ saving…';  el.className = 'cfg-status saving'; }
+  else if (state === 'synced') { el.textContent = '✓ synced';  el.className = 'cfg-status synced'; setTimeout(()=>{ if(el.textContent==='✓ synced') el.textContent=''; el.className='cfg-status'; }, 3000); }
+  else if (state === 'syncing') { el.textContent = '↻ syncing'; el.className = 'cfg-status saving'; }
+  else { el.textContent = ''; el.className = 'cfg-status'; }
+}
+
+// Legacy shim so existing code using App.storage still works
 const App = {
   storage: {
-    get(key, fallback='') { try { const value = localStorage.getItem(key); return value === null ? fallback : value; } catch (e) { return fallback; } },
-    set(key, value) { try { localStorage.setItem(key, value); return true; } catch (e) { return false; } },
-    getJSON(key, fallback={}) { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch (e) { return fallback; } },
-    setJSON(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch (e) { return false; } },
-    clear() { try { localStorage.clear(); return true; } catch (e) { return false; } }
+    get: (k, fb='') => DriveConfig.ls.get(k, fb),
+    set: (k, v)     => DriveConfig.ls.set(k, v),
+    getJSON: (k, fb={}) => DriveConfig.ls.getJ(k, fb),
+    setJSON: (k, v) => DriveConfig.ls.setJ(k, v),
+    clear: ()       => DriveConfig.clear()
   }
 };
 
@@ -32,20 +160,18 @@ function catById(id){ return CATS.find(c=>c.id===id)||{name:id||'—',icon:'·',
 const S = { url:'', budget:1800, startDay:10, sheet:'', cc:[], dd:[], stats:{}, spreadsheetUrl:'' };
 
 function persist(){
-  App.storage.set('bt_url', S.url);
-  App.storage.set('bt_budget', S.budget);
-  App.storage.set('bt_startday', S.startDay);
+  DriveConfig.set({ url: S.url, budget: S.budget, startDay: S.startDay });
 }
 function restore(){
-  S.url      = App.storage.get('bt_url','');
-  S.budget   = parseFloat(App.storage.get('bt_budget','1800'));
-  S.startDay = parseInt(App.storage.get('bt_startday','10'));
+  S.url      = DriveConfig.get('url', '');
+  S.budget   = parseFloat(DriveConfig.get('budget', 1800));
+  S.startDay = parseInt(DriveConfig.get('startDay', 10));
 }
-function getCatBudgets(){ return App.storage.getJSON('bt_catb', {}); }
+function getCatBudgets(){ return DriveConfig.get('catBudgets', {}); }
 function saveCatBudgets(){
   const b={};
   CATS.forEach(c=>{ const el=document.getElementById('cbi-'+c.id); if(el) b[c.id]=parseFloat(el.value)||0; });
-  App.storage.setJSON('bt_catb', b);
+  DriveConfig.set({ catBudgets: b });
   renderCatDetail(); renderDashCats();
   toast('Category budgets saved ✓');
 }
@@ -321,8 +447,8 @@ function clearFormError(prefix){ const box=document.getElementById(prefix+'-form
 function showFormError(prefix,msg,field){ const box=document.getElementById(prefix+'-form-error'); if(box) box.textContent=msg; if(field){ const el=document.getElementById(prefix+'-'+field); if(el){ el.classList.add('input-error'); el.focus(); } } }
 function ensureClientIds(list, prefix){ return (list||[]).map((item, index)=>({ ...item, clientId: item.clientId || `${prefix}-${item.row || index}-${String(item.date||'').slice(0,10)}-${String(item.desc||'').slice(0,12)}` })); }
 function syncClientIds(){ S.cc = ensureClientIds(S.cc, 'cc'); S.dd = ensureClientIds(S.dd, 'dd'); }
-function getRecurringTemplates(){ return App.storage.getJSON('bt_recurring', []); }
-function saveRecurringTemplates(list){ App.storage.setJSON('bt_recurring', list); }
+function getRecurringTemplates(){ return DriveConfig.get('recurring', []); }
+function saveRecurringTemplates(list){ DriveConfig.set({ recurring: list }); }
 function saveRecurringFromForm(type){ const p=type==='CC'?'cc':'dd'; const desc=document.getElementById(p+'-desc').value.trim(); const cat=document.getElementById(p+'-cat').value; const rawAmt=parseFloat(document.getElementById(p+'-amt').value); const entryType=document.getElementById(p+'-type').value; if(!desc || !cat || isNaN(rawAmt) || rawAmt===0){ showFormError(p,'Fill description, category, and amount before saving recurring','desc'); return; } const amount=entryType==='refund' ? -Math.abs(rawAmt) : Math.abs(rawAmt); const list=getRecurringTemplates(); list.push({ id: Date.now(), type, desc, cat, amount, entryType }); saveRecurringTemplates(list); renderRecurringTemplates(); toast('Recurring entry saved ✓'); }
 function removeRecurringTemplate(id){ const list=getRecurringTemplates().filter(x=>String(x.id)!==String(id)); saveRecurringTemplates(list); renderRecurringTemplates(); toast('Recurring entry removed'); }
 function renderRecurringTemplates(){ const el=document.getElementById('recurring-list'); if(!el) return; const list=getRecurringTemplates(); if(!list.length){ el.innerHTML='<div class="empty">No recurring entries saved yet</div>'; return; } el.innerHTML=list.map(item=>{ const c=catById(item.cat); return `<div class="rec-row"><div class="rec-meta"><div class="rec-title">${item.type} · ${item.desc}</div><div class="rec-sub">${c.icon} ${c.name} · ${chf(item.amount)}</div></div><button class="btn btn-r" type="button" onclick="removeRecurringTemplate('${item.id}')">Remove</button></div>`; }).join(''); }
@@ -332,8 +458,8 @@ function hasMatchingTransaction(item, dateOverride=''){ const date = dateOverrid
 async function applyRecurringTemplates(){ const list=getRecurringTemplates(); if(!list.length){ toast('No recurring entries saved yet','e'); return; } toast('Applying recurring entries…','l'); try{ for(const item of list){ const today=new Date().toISOString().slice(0,10); if(hasMatchingTransaction(item, today)) continue; const res=await apiPost({action:'addExpense',sheet:S.sheet,type:item.type,date:today,desc:item.desc,cat:item.cat,amount:item.amount,budget:S.budget}); if(res.error) throw new Error(res.error); S.cc=ensureClientIds(res.cc||S.cc, 'cc'); S.dd=ensureClientIds(res.dd||S.dd, 'dd'); S.stats=res.stats||S.stats; } renderAll(); hideToast(); toast('Recurring entries applied ✓'); }catch(err){ hideToast(); toast('Recurring apply failed: '+err.message,'e'); } }
 function downloadFile(filename, content, type='text/plain;charset=utf-8'){ const blob = new Blob([content], { type }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 500); }
 function exportTransactionsCSV(){ const rows = allTransactions(); if(!rows.length){ toast('Nothing to export yet','e'); return; } const headers = ['account','date','desc','cat','amount','running','row']; const esc = v => '"' + String(v ?? '').replace(/"/g, '""') + '"'; const csv = [headers.join(',')].concat(rows.map(r => headers.map(h => esc(r[h])).join(','))).join('\n'); downloadFile(`budget-transactions-${S.sheet||'export'}.csv`, csv, 'text/csv;charset=utf-8'); toast('CSV exported ✓'); }
-function exportBackupJSON(){ const backup = { exportedAt: new Date().toISOString(), period: S.sheet || currentSheet(), settings: { url: S.url, budget: S.budget, startDay: S.startDay, spreadsheetUrl: S.spreadsheetUrl || '' }, categoryBudgets: getCatBudgets(), insightProfile: App.storage.getJSON('bt_ins_profile', {}), transactions: allTransactions(), stats: S.stats || {} }; downloadFile(`budget-backup-${S.sheet||'export'}.json`, JSON.stringify(backup, null, 2), 'application/json;charset=utf-8'); toast('Backup exported ✓'); }
-async function importBackupJSON(event){ const file = event.target.files && event.target.files[0]; if(!file){ return; } try{ const text = await file.text(); const data = JSON.parse(text); let added = 0, skipped = 0; if(data.settings){ if(data.settings.url) S.url = data.settings.url; if(data.settings.budget) S.budget = parseFloat(data.settings.budget) || S.budget; if(data.settings.startDay) S.startDay = parseInt(data.settings.startDay) || S.startDay; persist(); } if(data.categoryBudgets) App.storage.setJSON('bt_catb', data.categoryBudgets); if(data.insightProfile) App.storage.setJSON('bt_ins_profile', data.insightProfile); if(Array.isArray(data.transactions) && data.transactions.length){ toast('Importing backup…','l'); for(const item of data.transactions){ const type = item.account || item.type; if(!type){ skipped++; continue; } if(hasMatchingTransaction({type, desc:item.desc, cat:item.cat, amount:item.amount}, item.date)){ skipped++; continue; } const res = await apiPost({action:'addExpense',sheet:S.sheet,type,date:(item.date||new Date().toISOString().slice(0,10)),desc:item.desc||'',cat:item.cat||'',amount:item.amount||0,budget:S.budget}); if(res.error) throw new Error(res.error); S.cc=ensureClientIds(res.cc||S.cc, 'cc'); S.dd=ensureClientIds(res.dd||S.dd, 'dd'); S.stats=res.stats||S.stats; added++; } } document.getElementById('cfg-url').value=S.url; document.getElementById('cfg-budget').value=S.budget; document.getElementById('cfg-startday').value=S.startDay; document.getElementById('about-startday').textContent=S.startDay+'th'; renderRecurringTemplates(); renderAll(); hideToast(); toast(`Backup imported ✓ Added ${added}, skipped ${skipped}`); }catch(err){ hideToast(); toast('Import failed: '+err.message,'e'); } finally{ event.target.value=''; } }
+function exportBackupJSON(){ const backup = { exportedAt: new Date().toISOString(), period: S.sheet || currentSheet(), settings: { url: S.url, budget: S.budget, startDay: S.startDay, spreadsheetUrl: S.spreadsheetUrl || '' }, categoryBudgets: getCatBudgets(), insightProfile: DriveConfig.get('insightProfile', {}), transactions: allTransactions(), stats: S.stats || {} }; downloadFile(`budget-backup-${S.sheet||'export'}.json`, JSON.stringify(backup, null, 2), 'application/json;charset=utf-8'); toast('Backup exported ✓'); }
+async function importBackupJSON(event){ const file = event.target.files && event.target.files[0]; if(!file){ return; } try{ const text = await file.text(); const data = JSON.parse(text); let added = 0, skipped = 0; if(data.settings){ if(data.settings.url) S.url = data.settings.url; if(data.settings.budget) S.budget = parseFloat(data.settings.budget) || S.budget; if(data.settings.startDay) S.startDay = parseInt(data.settings.startDay) || S.startDay; persist(); } if(data.categoryBudgets) DriveConfig.set({ catBudgets: data.categoryBudgets }); if(data.insightProfile) DriveConfig.set({ insightProfile: data.insightProfile }); if(Array.isArray(data.transactions) && data.transactions.length){ toast('Importing backup…','l'); for(const item of data.transactions){ const type = item.account || item.type; if(!type){ skipped++; continue; } if(hasMatchingTransaction({type, desc:item.desc, cat:item.cat, amount:item.amount}, item.date)){ skipped++; continue; } const res = await apiPost({action:'addExpense',sheet:S.sheet,type,date:(item.date||new Date().toISOString().slice(0,10)),desc:item.desc||'',cat:item.cat||'',amount:item.amount||0,budget:S.budget}); if(res.error) throw new Error(res.error); S.cc=ensureClientIds(res.cc||S.cc, 'cc'); S.dd=ensureClientIds(res.dd||S.dd, 'dd'); S.stats=res.stats||S.stats; added++; } } document.getElementById('cfg-url').value=S.url; document.getElementById('cfg-budget').value=S.budget; document.getElementById('cfg-startday').value=S.startDay; document.getElementById('about-startday').textContent=S.startDay+'th'; renderRecurringTemplates(); renderAll(); hideToast(); toast(`Backup imported ✓ Added ${added}, skipped ${skipped}`); }catch(err){ hideToast(); toast('Import failed: '+err.message,'e'); } finally{ event.target.value=''; } }
 function toastWithUndo(msg, undoFn, dur=5000){ const el=document.getElementById('toast'); el.className='show s'; el.innerHTML=''; const span=document.createElement('span'); span.textContent=msg; const btn=document.createElement('button'); btn.className='toast-action'; btn.type='button'; btn.textContent='Undo'; btn.onclick=()=>{ clearTimeout(_tt); undoFn(); }; el.append(span, btn); clearTimeout(_tt); _tt=setTimeout(()=>el.classList.remove('show'),dur); }
 
 function renderAll(){ renderDash(); renderLists(); renderDashCats(); renderCatDetail(); renderCharts(); refreshSuggestions(); if(document.getElementById('v-insights').classList.contains('on')) renderInsights(); }
@@ -925,12 +1051,12 @@ function getProfile(){
 
 function saveInsightProfile(){
   const p=getProfile();
-  App.storage.setJSON('bt_ins_profile', p);
+  DriveConfig.set({ insightProfile: p });
 }
 
 function loadInsightProfile(){
   try{
-    const p=App.storage.getJSON('bt_ins_profile', {});
+    const p=DriveConfig.get('insightProfile', {});
     if(p.age)    document.getElementById('ins-age').value=p.age;
     if(p.income) document.getElementById('ins-income').value=p.income;
     if(p.hh)     document.getElementById('ins-hh').value=p.hh;
@@ -1129,7 +1255,8 @@ function fabTap(){
   },100);
 }
 
-function init(){
+async function init(){
+  await DriveConfig.load();
   restore();
   buildCatSelects();
   document.getElementById('about-startday').textContent=S.startDay+'th';
@@ -1151,7 +1278,7 @@ init();
 // ─── Theme recolor hook ──────────────────────────────────────────
 window._chartsNeedRecolor = function() {
   // Rebuild charts with updated CSS var colors
-  if (typeof renderMonthly === 'function') { try { renderMonthly(App.storage.getJSON('bt-monthly',{data:[]})); } catch(e){} }
+  if (typeof renderMonthly === 'function') { try { renderMonthly(DriveConfig.ls.getJ('bt-monthly',{data:[]})); } catch(e){} }
   if (typeof renderLineChart === 'function') { try { renderLineChart(); } catch(e){} }
 };
 

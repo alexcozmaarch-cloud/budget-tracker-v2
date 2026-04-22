@@ -75,6 +75,7 @@
   <div class="hright">
     <div id="dot" class="dot"></div>
     <span id="stxt">Not connected</span>
+    <span id="cfg-status" class="cfg-status"></span>
     <a id="sheetLnk" href="#" target="_blank" class="sheet-lnk" style="display:none">Sheet ↗</a>
     <button id="theme-toggle" aria-label="Toggle dark mode" onclick="toggleTheme()">
       <!-- Icon injected by JS -->
@@ -152,17 +153,19 @@ function doGet(e) {
 
   if (action === 'getData')    return jsonResp(getData_(ss, sheet));
   if (action === 'getMonthly') return jsonResp(getMonthly_(ss));
+  if (action === 'loadConfig') return jsonResp(loadConfig_());
   return jsonResp({error:'Unknown action'});
 }
 
 function doPost(e) {
   const ss   = SpreadsheetApp.getActiveSpreadsheet();
   const body = JSON.parse(e.postData.contents);
-  const {action, sheet, type, date, desc, cat, amount, row, budget} = body;
+  const {action, sheet, type, date, desc, cat, amount, row, budget, config} = body;
 
   if (action === 'addExpense')    return jsonResp(addExpense_(ss, sheet, type, date, desc, cat, amount, budget));
   if (action === 'deleteExpense') return jsonResp(deleteExpense_(ss, sheet, type, row));
   if (action === 'editExpense')   return jsonResp(editExpense_(ss, sheet, type, row, date, desc, cat, amount, budget));
+  if (action === 'saveConfig')    return jsonResp(saveConfig_(config));
   return jsonResp({error:'Unknown action'});
 }
 
@@ -303,6 +306,36 @@ function updateMonthly_(ss, sheetName, budget) {
   const idx = dataRows.findIndex(r=>r[0]===sheetName);
   if (idx>=0) sh.getRange(idx+2,1,1,rowData.length).setValues([rowData]);
   else sh.appendRow(rowData);
+}
+
+// ─── Drive Config Sync ─────────────────────────────────────────
+const CONFIG_FILE_NAME = 'budget-tracker-config.json';
+
+function getConfigFile_() {
+  const files = DriveApp.getFilesByName(CONFIG_FILE_NAME);
+  return files.hasNext() ? files.next() : null;
+}
+
+function loadConfig_() {
+  const file = getConfigFile_();
+  if (!file) return { config: null };
+  try {
+    return { config: JSON.parse(file.getBlob().getDataAsString()) };
+  } catch(e) {
+    return { config: null };
+  }
+}
+
+function saveConfig_(config) {
+  if (!config) return { ok: false };
+  const json = JSON.stringify(config);
+  const file = getConfigFile_();
+  if (file) {
+    file.setContent(json);
+  } else {
+    DriveApp.createFile(CONFIG_FILE_NAME, json, MimeType.PLAIN_TEXT);
+  }
+  return { ok: true };
 }
 
 function jsonResp(obj){ return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON); }

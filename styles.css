@@ -221,6 +221,13 @@ header {
 .dot.syncing { background: var(--amber); animation: blink 1s ease-in-out infinite; }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
 #stxt { font-family: var(--font-mono); font-size: var(--text-xs); color: rgba(255,255,255,0.4); }
+.cfg-status {
+  font-family: var(--font-mono); font-size: var(--text-xs);
+  color: rgba(255,255,255,0.4); white-space: nowrap;
+  transition: opacity var(--ease);
+}
+.cfg-status.saving { color: var(--amber); }
+.cfg-status.synced { color: var(--green); }
 .iBtn {
   width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
   background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
@@ -768,6 +775,7 @@ select option { background: var(--s1); }
   .logo-sub { display: none; }
   .hright { gap: var(--sp-2); }
   #stxt { display: none; }
+  .cfg-status { display: none; }
   .iBtn, #theme-toggle { width: 32px; height: 32px; }
 
   /* Layout */
